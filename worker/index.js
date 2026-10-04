@@ -2,7 +2,7 @@ const TICKET_HOST = "ticketdive.com";
 const MAX_HTML_BYTES = 3_000_000;
 const GITHUB_PAGES_ORIGIN = "https://m0ch4771.github.io";
 
-const page = `<!doctype html>
+const page = String.raw`<!doctype html>
 <html lang="ja">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -37,7 +37,7 @@ const page = `<!doctype html>
     $("export").addEventListener("click",()=>{if(!window.XLSX){message("シート出力用ライブラリーを読み込めません。ページを再読み込みしてください。","error");return}const X=XLSX,rows=[["TIME","","","グループ名","時間","下3","下2","下1","0","上1","上2","上3"],...slots.map(s=>[s.start,"〜",s.end,s.group,s.minutes,"","","","","","",""]),[],["","","","区分","番号","使用者","所持者","交換","備考"],...[["お目当て",1], ["観たがり",2],["野良",3],["おまいつ",4]].map(x=>["","","",x[0],x[1],"","","",""]),...seatData.map(s=>["","","","",s.number,s.user,s.holder,s.exchange,s.memo])];const sheet=X.utils.aoa_to_sheet(rows);sheet["!merges"]=[{s:{r:0,c:0},e:{r:0,c:2}}];sheet["!cols"]=[{wch:10},{wch:4},{wch:10},{wch:27},{wch:8},...Array.from({length:7},()=>({wch:13}))];const range=X.utils.decode_range(sheet["!ref"]);for(let c=0;c<=11;c++){const cell=sheet[X.utils.encode_cell({r:0,c})];if(cell)cell.s={fill:{patternType:"solid",fgColor:{rgb:"20D4E3"}},font:{bold:true,color:{rgb:"092A30"}},alignment:{horizontal:"center",vertical:"center"},border:{top:{style:"thin",color:{rgb:"1D2529"}},bottom:{style:"thin",color:{rgb:"1D2529"}},left:{style:"thin",color:{rgb:"1D2529"}},right:{style:"thin",color:{rgb:"1D2529"}}}}}for(let r=1;r<range.e.r+1;r++){for(let c=0;c<=11;c++){const cell=sheet[X.utils.encode_cell({r,c})];if(!cell)continue;cell.s={alignment:{horizontal:"center",vertical:"center"},border:{top:{style:"thin",color:{rgb:"1D2529"}},bottom:{style:"thin",color:{rgb:"1D2529"}},left:{style:"thin",color:{rgb:"1D2529"}},right:{style:"thin",color:{rgb:"1D2529"}}}};if(r<=slots.length&&c<=2)cell.s.fill={patternType:"solid",fgColor:{rgb:"20D4E3"}}}}const colors=["FFFF00","FF9900","FF0000","00FF00"];for(let i=0;i<4;i++){const cell=sheet[X.utils.encode_cell({r:slots.length+2+i,c:3})];if(cell)cell.s={fill:{patternType:"solid",fgColor:{rgb:colors[i]}},alignment:{horizontal:"center",vertical:"center"}}}const book=X.utils.book_new();X.utils.book_append_sheet(book,sheet,"シート1");const name=($("title").value||"イベント表").replace(/[\\/:*?"<>|]/g,"_");X.writeFile(book,name+".xlsx")});
     renderSeats();
   </script>
-</body></html>`;
+</body></html>`.replaceAll("\\${", "${");
 
 function decodeEntities(value) {
   return value.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
