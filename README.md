@@ -1,2 +1,20 @@
-# ticket-timetable-builder
-TicketDiveのイベントURLと画像からタイムテーブルを作成するサイト
+# イベントタイムテーブル作成
+
+TicketDiveのイベントURLから情報と画像を読み込み、出演者・時間を確認してExcel形式のタイムテーブルを作成します。
+
+## 公開サイト
+
+GitHub Pages: https://m0ch4771.github.io/ticket-timetable-builder/
+
+## 使い方
+
+1. TicketDiveのイベントURLを入力して「読み込む」を選びます。
+2. 読み込まれたイベント名、開催日、会場、画像を確認します。
+3. 画像を文字認識し、出演者と時間を必要に応じて修正します。
+4. Excel形式でダウンロードし、Googleスプレッドシートで開きます。
+
+OCR結果と時刻は必ず確認してください。データはこの画面で編集し、表計算ファイルとしてダウンロードします。
+
+## 構成
+
+画面はGitHub Pagesで公開します。TicketDiveページと画像の取得には、同じアカウントで管理するWorker APIを利用します。
