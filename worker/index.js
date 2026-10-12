@@ -73,7 +73,7 @@ function corsHeaders(request) {
   return origin === GITHUB_PAGES_ORIGIN ? { "Access-Control-Allow-Origin": origin, "Vary": "Origin" } : {};
 }
 function handleOptions(request) {
-  if (request.headers.get("origin") !== GITHUB_PAGES_ORIGIN) return new Response(null, { status: 403 });
+  if (request.headers.get("origin") !== GITHUB_PAGES_ORIGIN && request.headers.get("origin") !== new URL(request.url).origin) return new Response(null, { status: 403 });
   return new Response(null, { status: 204, headers: { ...corsHeaders(request), "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "content-type", "Access-Control-Max-Age": "86400" } });
 }
 async function handlePreview(request) {
@@ -131,12 +131,129 @@ async function handleImage(request) {
   return new Response(response.body, { headers: { ...headers, "Content-Type": type } });
 }
 
+
+function bytesToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + 0x8000, bytes.length)));
+  }
+  return btoa(binary);
+}
+async function fetchPosterImage(raw, requestUrl) {
+  const proxy = new URL(raw, requestUrl);
+  if (proxy.origin !== new URL(requestUrl).origin || proxy.pathname !== "/api/ticket-image") throw new Error("画像URLを確認できませんでした。");
+  const source = allowedImageRequest(proxy.searchParams.get("url"));
+  if (!source) throw new Error("画像URLを確認できませんでした。");
+  let response = await fetch(source, { redirect: "manual" });
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get("location");
+    const next = location ? allowedImageRequest(new URL(location, source).href) : null;
+    if (!next) throw new Error("画像の転送先を確認できませんでした。");
+    response = await fetch(next, { redirect: "manual" });
+  }
+  const type = response.headers.get("content-type") || "";
+  const size = Number(response.headers.get("content-length") || 0);
+  if (!response.ok || !type.startsWith("image/") || size > 6_000_000) throw new Error("画像を読み込めませんでした（1枚6MB以下の画像に対応）。");
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength > 6_000_000) throw new Error("画像サイズが大きすぎます。");
+  return { mimeType: type.split(";")[0], data: bytesToBase64(buffer) };
+}
+async function handleTimetableOcr(request, env) {
+  const headers = { ...corsHeaders(request), "Cache-Control": "no-store" };
+  const origin = request.headers.get("origin");
+  if (origin !== new URL(request.url).origin && origin !== GITHUB_PAGES_ORIGIN) return Response.json({ message: "この画面から送信してください。" }, { status: 403, headers });
+  if (!env?.GEMINI_API_KEY) return Response.json({ message: "Gemini APIキーがWorkerに設定されていません。管理者がGEMINI_API_KEYを設定してください。" }, { status: 503, headers });
+  let input;
+  try { input = await request.json(); } catch { return Response.json({ message: "画像情報を確認してください。" }, { status: 400, headers }); }
+  const images = Array.isArray(input?.images) ? input.images.slice(0, 3) : [];
+  if (!images.length) return Response.json({ message: "読み取る画像がありません。" }, { status: 400, headers });
+  let posters;
+  try { posters = await Promise.all(images.map(src => fetchPosterImage(src, request.url))); }
+  catch (error) { return Response.json({ message: error.message || "ポスター画像を読み込めませんでした。" }, { status: 400, headers }); }
+
+  let visionUsed = false, visionWarning = "", ocrTexts = [];
+  if (env.GOOGLE_VISION_API_KEY) {
+    try {
+      const responses = await Promise.all(posters.slice(0, 1).map(async image => {
+        const response = await fetch("https://vision.googleapis.com/v1/images:annotate?key=" + encodeURIComponent(env.GOOGLE_VISION_API_KEY), {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requests: [{ image: { content: image.data }, features: [{ type: "DOCUMENT_TEXT_DETECTION" }] }] })
+        });
+        const result = await response.json();
+        if (!response.ok || result.responses?.[0]?.error) throw new Error(result.error?.message || result.responses?.[0]?.error?.message || "Cloud Vision OCRを利用できませんでした。");
+        return result.responses?.[0]?.fullTextAnnotation?.text || "";
+      }));
+      ocrTexts = responses;
+      visionUsed = true;
+    } catch (error) { visionWarning = error.message || "Cloud Vision OCRを利用できませんでした。"; }
+  } else {
+    visionWarning = "Cloud Vision APIキー未設定";
+  }
+
+  const artists = Array.isArray(input.artists) ? input.artists.map(x => String(x).trim()).filter(Boolean).slice(0, 80) : [];
+  const prompt = [
+    "画像からライブイベントのタイムテーブルだけを読み取ってください。",
+    "日本語の出演者名と各出演の開始・終了時刻を、画像のレイアウトと文字を見て抽出してください。",
+    "下の出演者候補と一致する場合は候補の表記をそのままgroupに使ってください。候補にない、または判別できない名前は「出演者名を確認」としてください。",
+    "開場、開演、物販、特典会、注意書きの時刻は出演枠として出力しないでください。時刻を推測して補わないでください。",
+    "同じ時間帯の別ステージなど、画像に別々の出演枠があればそれぞれ出力してください。行の並び順は画像の上から順にしてください。",
+    "start/endは24時間表記HH:MM。minutesは終了-開始の分数。confidenceは読み取った出演者名と時刻の確信度を0から1で示してください。",
+    "needsReviewは名前または時刻に少しでも迷いがある場合trueにしてください。読み取れない行を作らないでください。",
+    "出演者候補: " + JSON.stringify(artists),
+    "Cloud Vision OCRの補助テキスト: " + JSON.stringify(ocrTexts),
+    "JSONスキーマに従い、説明文を付けずに返してください。"
+  ].join("\n");
+  const parts = [{ text: prompt }, ...posters.map(image => ({ inlineData: { mimeType: image.mimeType, data: image.data } }))];
+  let response, result;
+  try {
+    response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" + encodeURIComponent(env.GEMINI_API_KEY), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts }],
+        generationConfig: {
+          temperature: 0.1, maxOutputTokens: 4096, responseMimeType: "application/json",
+          responseSchema: { type: "OBJECT", properties: { rows: { type: "ARRAY", items: { type: "OBJECT", properties: {
+            start: { type: "STRING" }, end: { type: "STRING" }, group: { type: "STRING" }, minutes: { type: "INTEGER" }, confidence: { type: "NUMBER" }, needsReview: { type: "BOOLEAN" }
+          }, required: ["start", "end", "group", "minutes", "confidence", "needsReview"] } } }, required: ["rows"] }
+        }
+      })
+    });
+    result = await response.json();
+  } catch {
+    return Response.json({ message: "Gemini APIに接続できませんでした。少し時間をおいて再試行してください。" }, { status: 502, headers });
+  }
+  if (!response.ok) {
+    const code = response.status === 429 ? 429 : response.status === 403 ? 503 : 502;
+    const message = response.status === 429
+      ? "Gemini APIの無料利用上限に達しました。上限がリセットされてから再試行してください。課金への切り替えは行いません。"
+      : response.status === 403
+        ? "Gemini APIキーまたはAPIの設定を確認してください。"
+        : "Gemini APIで読み取りに失敗しました。";
+    return Response.json({ message }, { status: code, headers });
+  }
+  const text = result.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("") || "";
+  let parsed;
+  try { parsed = JSON.parse(text); }
+  catch { return Response.json({ message: "読み取り結果を解析できませんでした。もう一度お試しください。" }, { status: 502, headers }); }
+  const validTime = value => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(value || ""));
+  const rows = (Array.isArray(parsed.rows) ? parsed.rows : []).slice(0, 60).map(row => {
+    const confidence = Math.max(0, Math.min(1, Number(row.confidence) || 0));
+    const group = String(row.group || "").trim().slice(0, 100);
+    const start = String(row.start || "").replace(/[：]/g, ":");
+    const end = String(row.end || "").replace(/[：]/g, ":");
+    return { start: validTime(start) ? start : "", end: validTime(end) ? end : "", group: group || "出演者名を確認", minutes: Math.max(0, Math.min(1440, Number(row.minutes) || 0)), confidence, needsReview: Boolean(row.needsReview) || confidence < 0.82 || !validTime(start) || !validTime(end) || group === "出演者名を確認" };
+  }).filter(row => row.start || row.end || row.group);
+  return Response.json({ rows, visionUsed, visionWarning: visionWarning.slice(0, 200) }, { headers });
+}
+
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     const url = new URL(request.url);
-    if (request.method === "OPTIONS" && (url.pathname === "/api/ticket-preview" || url.pathname === "/api/ticket-image")) return handleOptions(request);
+    if (request.method === "OPTIONS" && (url.pathname === "/api/ticket-preview" || url.pathname === "/api/ticket-image" || url.pathname === "/api/timetable-ocr")) return handleOptions(request);
     if (url.pathname === "/api/ticket-preview" && request.method === "POST") return handlePreview(request);
     if (url.pathname === "/api/ticket-image" && request.method === "GET") return handleImage(request);
+    if (url.pathname === "/api/timetable-ocr" && request.method === "POST") return handleTimetableOcr(request, env);
     if (url.pathname !== "/" && url.pathname !== "/index.html") return new Response("Not found", { status: 404 });
     return new Response(page, { headers: { "Content-Type": "text/html; charset=utf-8", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin" } });
   },
