@@ -27,8 +27,35 @@ const page = String.raw`<!doctype html>
   <script>
     const $=id=>document.getElementById(id);let eventInfo=null,slots=[],seatData=Array.from({length:10},(_,i)=>({number:String(i+1),user:"",holder:"",exchange:"",memo:""}));
     const uid=()=>Math.random().toString(36).slice(2,9);const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));const minutesBetween=(a,b)=>{const toMin=x=>{const p=x.split(":").map(Number);return p[0]*60+p[1]};const value=toMin(b)-toMin(a);return value<0?value+1440:value};
+const minutesAt=x=>{const m=/^(?:([01]\d|2[0-3])):([0-5]\d)$/.exec(String(x||"").trim());return m?Number(m[1])*60+Number(m[2]):null};
+    const hasCompleteTime=s=>minutesAt(s.start)!==null&&minutesAt(s.end)!==null;
+    const orderCompleteSlots=items=>{
+      const complete=items.filter(hasCompleteTime).map((s,i)=>({s,i})).sort((a,b)=>minutesAt(a.s.start)-minutesAt(b.s.start)||a.i-b.i).map(x=>x.s);
+      let index=0;
+      return items.map(s=>hasCompleteTime(s)?complete[index++]:s);
+    };
+    function updateDuration(item,row){
+      if(!hasCompleteTime(item))return;
+      item.minutes=String((minutesAt(item.end)-minutesAt(item.start)+1440)%1440);
+      const field=row.querySelector('input[data-key="minutes"]');
+      if(field)field.value=item.minutes;
+    }
+
     function message(text,type="notice"){const box=$("status");box.className=type;box.textContent=text;}
-    function renderSlots(){const body=$("slotRows");if(!slots.length){body.innerHTML='<tr><td colspan="12" style="height:120px;text-align:center;color:#75838b">URLを読み込むと出演者が表示されます。</td></tr>';return}const tiers=["下3","下2","下1","0","上1","上2","上3"];body.innerHTML=slots.map(s=>'<tr data-id="'+s.id+'"><td><input class="cell" data-key="start" aria-label="開始時刻" placeholder="14:00" value="'+esc(s.start)+'"></td><td><input class="cell" data-key="end" aria-label="終了時刻" placeholder="14:20" value="'+esc(s.end)+'"></td><td><input class="cell group" data-key="group" aria-label="グループ名" placeholder="出演者名" value="'+esc(s.group)+'"></td><td><input class="cell" data-key="minutes" aria-label="出演時間" placeholder="20" value="'+esc(s.minutes)+'"></td>'+tiers.map(t=>'<td><input class="cell tier" aria-label="'+t+'欄"></td>').join('')+'<td><button class="delete" aria-label="行を削除" data-delete="'+s.id+'">×</button></td></tr>').join('');body.querySelectorAll("input[data-key]").forEach(el=>el.addEventListener("input",()=>{const row=el.closest("tr"),item=slots.find(s=>s.id===row.dataset.id);if(item)item[el.dataset.key]=el.value}));body.querySelectorAll("[data-delete]").forEach(el=>el.addEventListener("click",()=>{slots=slots.filter(s=>s.id!==el.dataset.delete);renderSlots()}));}
+    function renderSlots(){slots=orderCompleteSlots(slots);const body=$("slotRows");if(!slots.length){body.innerHTML='<tr><td colspan="12" style="height:120px;text-align:center;color:#75838b">URLを読み込むと出演者が表示されます。</td></tr>';return}const tiers=["下3","下2","下1","0","上1","上2","上3"];body.innerHTML=slots.map(s=>'<tr data-id="'+s.id+'"><td><input class="cell" data-key="start" aria-label="開始時刻" placeholder="14:00" value="'+esc(s.start)+'"></td><td><input class="cell" data-key="end" aria-label="終了時刻" placeholder="14:20" value="'+esc(s.end)+'"></td><td><input class="cell group" data-key="group" aria-label="グループ名" placeholder="出演者名" value="'+esc(s.group)+'"></td><td><input class="cell" data-key="minutes" aria-label="出演時間" placeholder="20" value="'+esc(s.minutes)+'"></td>'+tiers.map(t=>'<td><input class="cell tier" aria-label="'+t+'欄"></td>').join('')+'<td><button class="delete" aria-label="行を削除" data-delete="'+s.id+'">×</button></td></tr>').join('');body.querySelectorAll("input[data-key]").forEach(el=>{
+      const isTime=el.dataset.key==="start"||el.dataset.key==="end";
+      el.addEventListener("input",()=>{
+        const row=el.closest("tr"),item=slots.find(s=>s.id===row.dataset.id);
+        if(!item)return;
+        item[el.dataset.key]=el.value;
+        if(isTime)updateDuration(item,row);
+      });
+      if(isTime)el.addEventListener("blur",()=>{
+        const row=el.closest("tr"),item=slots.find(s=>s.id===row.dataset.id);
+        if(item&&hasCompleteTime(item)){updateDuration(item,row);renderSlots();}
+      });
+      else if(el.dataset.key==="group")el.addEventListener("change",renderSlots);
+    });body.querySelectorAll("[data-delete]").forEach(el=>el.addEventListener("click",()=>{slots=slots.filter(s=>s.id!==el.dataset.delete);renderSlots()}));}
     function renderSeats(){const cats=[["お目当て","#ffe838","#263238"],["観たがり","#ff9b00","#263238"],["野良","#ef3939","white"],["おまいつ","#21db27","#153b19"]];$("seatRows").innerHTML=cats.map((c,i)=>'<tr><td><span class="seatTag" style="background:'+c[1]+';color:'+c[2]+'">'+c[0]+'</span></td><td>'+(i+1)+'</td><td colspan="4" style="color:#75838b">区分の色は出力シートに反映されます</td></tr>').join('')+seatData.map((s,i)=>'<tr data-seat="'+i+'"><td></td>'+["number","user","holder","exchange","memo"].map(key=>'<td><input class="cell" data-seat-key="'+key+'" aria-label="'+key+'" value="'+esc(s[key])+'"></td>').join('')+'</tr>').join('');$("seatRows").querySelectorAll("input[data-seat-key]").forEach(el=>el.addEventListener("input",()=>{const row=el.closest("tr"),item=seatData[Number(row.dataset.seat)];item[el.dataset.seatKey]=el.value}));}
     $("addSlot").addEventListener("click",()=>{slots.push({id:uid(),start:"",end:"",group:"",minutes:""});renderSlots()});$("addSeat").addEventListener("click",()=>{seatData.push({number:String(seatData.length+1),user:"",holder:"",exchange:"",memo:""});renderSeats()});
     $("load").addEventListener("click",async()=>{message("");$("load").disabled=true;$("load").innerHTML='<span class="spinner"></span> 読み込み中';try{const r=await fetch("/api/ticket-preview",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({url:$("ticketUrl").value,flyerUrl:$("flyerUrl").value.trim()})});const data=await r.json();if(!r.ok)throw Error(data.message||"チケットページを読み込めませんでした。");eventInfo=data;$("eventPanel").hidden=false;$("title").value=data.title||"";$("date").value=data.date||"";$("venue").value=data.venue||"";$("eventLabel").textContent=data.title||"新しいイベント";const opening=data.openTime&&data.startTime?[{id:uid(),start:data.openTime,end:data.startTime,group:"OPEN",minutes:String(minutesBetween(data.openTime,data.startTime))}]:[];slots=[...opening,...(data.artists||[]).map(group=>({id:uid(),start:"",end:"",group,minutes:""}))];renderSlots();const images=$("images");images.innerHTML="";if(data.images?.length){data.images.slice(0,4).forEach((src,i)=>{const box=document.createElement("div");box.className="imagebox";const img=document.createElement("img");img.src=src;img.alt="イベント画像 "+(i+1);box.append(img);images.append(box)})}else images.innerHTML='<div class="empty">ページから画像を見つけられませんでした</div>';message("イベント情報を取得しました。画像を読み取り、内容を確認してください。")}catch(e){message(e.message||"ページの読み込みに失敗しました。","error")}finally{$("load").disabled=false;$("load").textContent="読み込む"}});
