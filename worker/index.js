@@ -222,6 +222,22 @@ async function fetchPosterImage(raw, requestUrl) {
   if (buffer.byteLength > 6_000_000) throw new Error("画像サイズが大きすぎます。");
   return { mimeType: type.split(";")[0], data: bytesToBase64(buffer) };
 }
+async function fetchGeminiWithRetry(url, options, maxAttempts = 3) {
+  const retryable = new Set([408, 429, 500, 502, 503, 504]);
+  let lastError;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok || !retryable.has(response.status) || attempt === maxAttempts - 1) return response;
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxAttempts - 1) throw error;
+    }
+    const delay = 1000 * (2 ** attempt) + Math.floor(Math.random() * 250);
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+  throw lastError || new Error("Gemini APIへの接続に失敗しました。");
+}
 async function handleTimetableOcr(request, env) {
   const headers = { ...corsHeaders(request), "Cache-Control": "no-store" };
   const origin = request.headers.get("origin");
@@ -270,7 +286,7 @@ async function handleTimetableOcr(request, env) {
   const parts = [{ text: prompt }, ...posters.map(image => ({ inlineData: { mimeType: image.mimeType, data: image.data } }))];
   let response, result;
   try {
-    response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent", {
+    response = await fetchGeminiWithRetry("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent", {
       method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
       body: JSON.stringify({
         contents: [{ role: "user", parts }],
