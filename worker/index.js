@@ -175,7 +175,7 @@ async function handleTimetableOcr(request, env) {
   let visionUsed = false, visionWarning = "", ocrTexts = [];
   if (env.GOOGLE_VISION_API_KEY) {
     try {
-      const responses = await Promise.all(posters.slice(0, 1).map(async image => {
+      const responses = await Promise.all(posters.map(async image => {
         const response = await fetch("https://vision.googleapis.com/v1/images:annotate", {
           method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": env.GOOGLE_VISION_API_KEY },
           body: JSON.stringify({ requests: [{ image: { content: image.data }, features: [{ type: "DOCUMENT_TEXT_DETECTION" }] }] })
