@@ -273,7 +273,7 @@ async function handleTimetableOcr(request, env) {
       body: JSON.stringify({
         contents: [{ role: "user", parts }],
         generationConfig: {
-          temperature: 0.1, maxOutputTokens: 4096, responseMimeType: "application/json",
+          maxOutputTokens: 4096, responseMimeType: "application/json",
           responseSchema: { type: "OBJECT", properties: { rows: { type: "ARRAY", items: { type: "OBJECT", properties: {
             start: { type: "STRING" }, end: { type: "STRING" }, group: { type: "STRING" }, minutes: { type: "INTEGER" }, confidence: { type: "NUMBER" }, needsReview: { type: "BOOLEAN" }
           }, required: ["start", "end", "group", "minutes", "confidence", "needsReview"] } } }, required: ["rows"] }
@@ -285,12 +285,18 @@ async function handleTimetableOcr(request, env) {
     return Response.json({ message: "Gemini APIに接続できませんでした。少し時間をおいて再試行してください。" }, { status: 502, headers });
   }
   if (!response.ok) {
-    const code = response.status === 429 ? 429 : response.status === 403 ? 503 : 502;
+    const detail = String(result?.error?.message || "").replace(/\s+/g, " ").slice(0, 240);
+    console.error("Gemini API error", response.status, result?.error?.status || "", detail);
+    const code = response.status === 429 ? 429 : response.status === 401 || response.status === 403 ? 503 : 502;
     const message = response.status === 429
-      ? "Gemini APIの無料利用上限に達しました。上限がリセットされてから再試行してください。課金への切り替えは行いません。"
-      : response.status === 403
-        ? "Gemini APIキーまたはAPIの設定を確認してください。"
-        : "Gemini APIで読み取りに失敗しました。";
+      ? "Gemini APIの利用上限に達しました。時間をおいて再試行してください。"
+      : response.status === 401 || response.status === 403
+        ? "Gemini APIキーまたはGoogle AI Studio側のAPI設定を確認してください。"
+        : response.status === 400
+          ? "Gemini APIがリクエストを受け付けませんでした。画像形式やAPIリクエストの設定を確認してください。" + (detail ? " 詳細: " + detail : "")
+          : response.status === 404
+            ? "Geminiのモデルが見つからないか、このAPIで利用できません。Workerを最新コードに更新してください。" + (detail ? " 詳細: " + detail : "")
+            : "Gemini APIで一時的なエラーが発生しました。少し時間をおいて再試行してください。" + (detail ? " 詳細: " + detail : "");
     return Response.json({ message }, { status: code, headers });
   }
   const text = result.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("") || "";
