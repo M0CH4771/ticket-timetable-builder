@@ -8,13 +8,22 @@ GitHub Pages: https://m0ch4771.github.io/ticket-timetable-builder/
 
 ## 使い方
 
-1. TicketDiveのイベントURLか、TicketDiveへのリンクがあるX投稿URLを入力して「読み込む」を選びます。
-2. 必要なら「別のXフライヤー投稿URL」にフライヤー投稿を入力します。
-3. 読み込まれたイベント名、開催日、会場、画像を確認します。
-4. 画像を文字認識し、出演者と時間を必要に応じて修正します。
-5. Excel形式でダウンロードし、Googleスプレッドシートで開きます。
+1. TicketDive・t-dv.com・X投稿のURLを入力します。別のフライヤー投稿がある場合は読み込み前に指定します。
+2. 「イベントを読み込む」で基本情報と候補画像を取得します。
+3. 時間が載った画像を最大3枚選び、「選んだ画像を読み取る」を押します。画像は拡大して確認できます。
+4. 出演者と時刻を確認します。開始・終了がそろうと出演時間を自動計算し、行から離れると時刻順に並び替えます。
+5. 要確認の行を元画像と照合します。チェックボタンはOCR結果の確認に使用します。未入力や時間の重なりは別途表示されます。
+6. 整理番号欄は必要に応じて表示・入力し、ExcelまたはGoogleスプレッドシートに出力します。
 
-OCR結果と時刻は必ず確認してください。データはこの画面で編集し、表計算ファイルとしてダウンロードします。
+## 編集と保存
+
+- スマホはカード形式、PCは表形式で編集できます。
+- 下書きは同じ端末・ブラウザーに自動保存します。別端末への同期はありません。
+- 「元に戻す」「やり直す」で最大30操作を戻せます。操作履歴はページを閉じると消えます。
+- 整理番号欄の入力は再描画・下書き・Excel・Googleスプレッドシートに保持されます。
+- 画像読み取りはボタンを押したときだけ行います。再読み取り前には置き換えを確認します。
+- サンプルと手入力はOCR APIを呼び出しません。
+- 設定から保存した下書きを削除できます。
 
 ## 構成
 
@@ -39,6 +48,6 @@ GitHub Pagesは画面を配信し、Cloudflare WorkerがTicketDiveの取得とOC
 4. Google AI Studioで、課金を有効にしていないプロジェクトのGemini APIキーを作成します。2026年10月時点では新しいキーは認証キーが標準です。キーを画面やGitHubへ貼らず、npx wrangler secret put GEMINI_API_KEY を実行して表示される入力欄に貼り付けます。
 5. Cloud Visionも使う場合はGoogle CloudでVision APIを有効にし、Vision APIキーを作って npx wrangler secret put GOOGLE_VISION_API_KEY で設定します。課金が必要なため、完全無料で使う場合はこのキーを設定しません。
 6. npx wrangler secret put のあと秘密情報がWorkerへ反映されます。
-7. 発行されたWorker URLをGitHub Pagesの「Googleアカウント連携の設定」内にある「Worker API URL」へ入力して保存します。
+7. 発行されたWorker URLを画面右上の設定 →「Google連携・APIの詳細」→「Worker API URL」へ入力して保存します。
 
-Worker URLとAPIキーはGitHubへコミットしないでください。wrangler.toml はWorker名とエントリーポイントのみを設定し、秘密情報はCloudflareに保存します。
+APIキーはGitHubへコミットしないでください。wrangler.toml はWorker名とエントリーポイントのみを設定し、秘密情報はCloudflareに保存します。
