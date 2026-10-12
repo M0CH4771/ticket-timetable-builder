@@ -18,7 +18,7 @@ const page = String.raw`<!doctype html>
   <header><div class="head"><div class="brand"><div class="mark">時</div><div><strong>イベント表作成</strong><small>チケットページからタイムテーブルを準備</small></div></div><span class="local">入力内容はこのブラウザー内で処理</span></div></header>
   <main class="layout">
     <section class="left">
-      <section class="panel"><div class="intro"><span class="step">1</span><div><h1>チケットURLを読み込む</h1><p>TicketDiveのイベントページから画像と基本情報を取得します。</p></div></div><label class="label" for="ticketUrl">チケットページURL</label><div class="row"><input id="ticketUrl" class="input" value="https://ticketdive.com/event/261012t" placeholder="https://ticketdive.com/event/..." autocomplete="url"><button id="load" class="btn primary">読み込む</button></div><div class="hint">現在はTicketDiveのイベントURLに対応しています。</div><div id="status" aria-live="polite"></div></section>
+      <section class="panel"><div class="intro"><span class="step">1</span><div><h1>チケットURLを読み込む</h1><p>TicketDiveのイベントページから画像と基本情報を取得します。</p></div></div><label class="label" for="ticketUrl">チケットURL</label><div class="row"><input id="ticketUrl" class="input" value="https://ticketdive.com/event/261012t" placeholder="TicketDiveまたはX投稿URL" autocomplete="url"><button id="load" class="btn primary">読み込む</button></div><label class="label" for="flyerUrl" style="margin-top:12px">別のXフライヤー投稿URL（任意）</label><input id="flyerUrl" class="input" style="margin-top:8px" placeholder="https://x.com/.../status/..."><div class="hint">X投稿URLだけでも、投稿内のTicketDiveリンクからイベントを読み込みます。別の投稿の高画質フライヤーを使う場合はここに入力してください。</div><div id="status" aria-live="polite"></div></section>
       <section id="eventPanel" class="panel" hidden><div class="intro"><span class="step">2</span><div><h2>画像を確認する</h2><p>候補画像を読み取り、文字を表にします。</p></div><button id="scan" class="btn secondary">画像を読み取る</button></div><div id="images" class="imagelist"></div><div class="eventfields"><label class="field"><span class="label">イベント名</span><input id="title" class="input" style="margin-top:8px"></label><label class="field"><span class="label">開催日</span><input id="date" class="input" style="margin-top:8px" placeholder="2026/10/12"></label><label class="field full"><span class="label">会場</span><input id="venue" class="input" style="margin-top:8px"></label></div></section>
       <section class="panel"><div class="intro"><span class="step">3</span><div><h2>内容を整えて出力</h2><p>出演者・時間・番号欄を確認し、シート形式で保存します。画像の文字認識だけでは確定できない時刻があります。</p><button id="export" class="btn export" style="margin-top:14px">▦　スプレッドシートをダウンロード</button><div class="hint">Googleスプレッドシートで開けるExcel形式です。</div></div></div></section>
     </section>
@@ -31,7 +31,7 @@ const page = String.raw`<!doctype html>
     function renderSlots(){const body=$("slotRows");if(!slots.length){body.innerHTML='<tr><td colspan="12" style="height:120px;text-align:center;color:#75838b">URLを読み込むと出演者が表示されます。</td></tr>';return}const tiers=["下3","下2","下1","0","上1","上2","上3"];body.innerHTML=slots.map(s=>'<tr data-id="'+s.id+'"><td><input class="cell" data-key="start" aria-label="開始時刻" placeholder="14:00" value="'+esc(s.start)+'"></td><td><input class="cell" data-key="end" aria-label="終了時刻" placeholder="14:20" value="'+esc(s.end)+'"></td><td><input class="cell group" data-key="group" aria-label="グループ名" placeholder="出演者名" value="'+esc(s.group)+'"></td><td><input class="cell" data-key="minutes" aria-label="出演時間" placeholder="20" value="'+esc(s.minutes)+'"></td>'+tiers.map(t=>'<td><input class="cell tier" aria-label="'+t+'欄"></td>').join('')+'<td><button class="delete" aria-label="行を削除" data-delete="'+s.id+'">×</button></td></tr>').join('');body.querySelectorAll("input[data-key]").forEach(el=>el.addEventListener("input",()=>{const row=el.closest("tr"),item=slots.find(s=>s.id===row.dataset.id);if(item)item[el.dataset.key]=el.value}));body.querySelectorAll("[data-delete]").forEach(el=>el.addEventListener("click",()=>{slots=slots.filter(s=>s.id!==el.dataset.delete);renderSlots()}));}
     function renderSeats(){const cats=[["お目当て","#ffe838","#263238"],["観たがり","#ff9b00","#263238"],["野良","#ef3939","white"],["おまいつ","#21db27","#153b19"]];$("seatRows").innerHTML=cats.map((c,i)=>'<tr><td><span class="seatTag" style="background:'+c[1]+';color:'+c[2]+'">'+c[0]+'</span></td><td>'+(i+1)+'</td><td colspan="4" style="color:#75838b">区分の色は出力シートに反映されます</td></tr>').join('')+seatData.map((s,i)=>'<tr data-seat="'+i+'"><td></td>'+["number","user","holder","exchange","memo"].map(key=>'<td><input class="cell" data-seat-key="'+key+'" aria-label="'+key+'" value="'+esc(s[key])+'"></td>').join('')+'</tr>').join('');$("seatRows").querySelectorAll("input[data-seat-key]").forEach(el=>el.addEventListener("input",()=>{const row=el.closest("tr"),item=seatData[Number(row.dataset.seat)];item[el.dataset.seatKey]=el.value}));}
     $("addSlot").addEventListener("click",()=>{slots.push({id:uid(),start:"",end:"",group:"",minutes:""});renderSlots()});$("addSeat").addEventListener("click",()=>{seatData.push({number:String(seatData.length+1),user:"",holder:"",exchange:"",memo:""});renderSeats()});
-    $("load").addEventListener("click",async()=>{message("");$("load").disabled=true;$("load").innerHTML='<span class="spinner"></span> 読み込み中';try{const r=await fetch("/api/ticket-preview",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({url:$("ticketUrl").value})});const data=await r.json();if(!r.ok)throw Error(data.message||"チケットページを読み込めませんでした。");eventInfo=data;$("eventPanel").hidden=false;$("title").value=data.title||"";$("date").value=data.date||"";$("venue").value=data.venue||"";$("eventLabel").textContent=data.title||"新しいイベント";const opening=data.openTime&&data.startTime?[{id:uid(),start:data.openTime,end:data.startTime,group:"OPEN",minutes:String(minutesBetween(data.openTime,data.startTime))}]:[];slots=[...opening,...(data.artists||[]).map(group=>({id:uid(),start:"",end:"",group,minutes:""}))];renderSlots();const images=$("images");images.innerHTML="";if(data.images?.length){data.images.slice(0,4).forEach((src,i)=>{const box=document.createElement("div");box.className="imagebox";const img=document.createElement("img");img.src=src;img.alt="イベント画像 "+(i+1);box.append(img);images.append(box)})}else images.innerHTML='<div class="empty">ページから画像を見つけられませんでした</div>';message("イベント情報を取得しました。画像を読み取り、内容を確認してください。")}catch(e){message(e.message||"ページの読み込みに失敗しました。","error")}finally{$("load").disabled=false;$("load").textContent="読み込む"}});
+    $("load").addEventListener("click",async()=>{message("");$("load").disabled=true;$("load").innerHTML='<span class="spinner"></span> 読み込み中';try{const r=await fetch("/api/ticket-preview",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({url:$("ticketUrl").value,flyerUrl:$("flyerUrl").value.trim()})});const data=await r.json();if(!r.ok)throw Error(data.message||"チケットページを読み込めませんでした。");eventInfo=data;$("eventPanel").hidden=false;$("title").value=data.title||"";$("date").value=data.date||"";$("venue").value=data.venue||"";$("eventLabel").textContent=data.title||"新しいイベント";const opening=data.openTime&&data.startTime?[{id:uid(),start:data.openTime,end:data.startTime,group:"OPEN",minutes:String(minutesBetween(data.openTime,data.startTime))}]:[];slots=[...opening,...(data.artists||[]).map(group=>({id:uid(),start:"",end:"",group,minutes:""}))];renderSlots();const images=$("images");images.innerHTML="";if(data.images?.length){data.images.slice(0,4).forEach((src,i)=>{const box=document.createElement("div");box.className="imagebox";const img=document.createElement("img");img.src=src;img.alt="イベント画像 "+(i+1);box.append(img);images.append(box)})}else images.innerHTML='<div class="empty">ページから画像を見つけられませんでした</div>';message("イベント情報を取得しました。画像を読み取り、内容を確認してください。")}catch(e){message(e.message||"ページの読み込みに失敗しました。","error")}finally{$("load").disabled=false;$("load").textContent="読み込む"}});
     $("scan").addEventListener("click",async()=>{if(!eventInfo?.images?.length)return;$("scan").disabled=true;$("scan").innerHTML='<span class="spinner"></span> 読み取り中';try{if(!window.Tesseract)throw Error("文字認識ライブラリーを読み込めませんでした。");const worker=await Tesseract.createWorker("jpn+eng",1,{logger:m=>{if(m.status==="recognizing text")message("画像を読み取り中 "+Math.round((m.progress||0)*100)+"%")}});let text="";for(const src of eventInfo.images.slice(0,3)){const result=await worker.recognize(src);text+="\n"+result.data.text}await worker.terminate();const lines=text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),timed=lines.filter(x=>/\d{1,2}[:：]\d{2}/.test(x));if(timed.length){slots=timed.map(line=>{const times=[...line.matchAll(/(\d{1,2})[:：](\d{2})/g)].map(m=>m[1].padStart(2,"0")+":"+m[2]);const group=line.replace(/\d{1,2}[:：]\d{2}/g," ").replace(/[|｜・:：~〜\-–—]/g," ").replace(/\s+/g," ").trim();return{id:uid(),start:times[0]||"",end:times[1]||"",group:group||"出演者名を確認",minutes:""}});renderSlots();message("画像の文字を読み取りました。誤認識があるため、出演者名と時刻を確認・修正してください。")}else message("時刻は画像から見つかりませんでした。ページから取得した出演者名と時刻を下の表で確認・入力してください。")}catch(e){message(e.message||"画像読み取りの準備に失敗しました。出演者名と時刻を手入力できます。","error")}finally{$("scan").disabled=false;$("scan").textContent="画像を読み取る"}});
     $("title").addEventListener("input",()=>{$("eventLabel").textContent=$("title").value||"新しいイベント"});
     $("export").addEventListener("click",()=>{if(!window.XLSX){message("シート出力用ライブラリーを読み込めません。ページを再読み込みしてください。","error");return}const X=XLSX,rows=[["TIME","","","グループ名","時間","下3","下2","下1","0","上1","上2","上3"],...slots.map(s=>[s.start,"〜",s.end,s.group,s.minutes,"","","","","","",""]),[],["","","","区分","番号","使用者","所持者","交換","備考"],...[["お目当て",1], ["観たがり",2],["野良",3],["おまいつ",4]].map(x=>["","","",x[0],x[1],"","","",""]),...seatData.map(s=>["","","","",s.number,s.user,s.holder,s.exchange,s.memo])];const sheet=X.utils.aoa_to_sheet(rows);sheet["!merges"]=[{s:{r:0,c:0},e:{r:0,c:2}}];sheet["!cols"]=[{wch:10},{wch:4},{wch:10},{wch:27},{wch:8},...Array.from({length:7},()=>({wch:13}))];const range=X.utils.decode_range(sheet["!ref"]);for(let c=0;c<=11;c++){const cell=sheet[X.utils.encode_cell({r:0,c})];if(cell)cell.s={fill:{patternType:"solid",fgColor:{rgb:"20D4E3"}},font:{bold:true,color:{rgb:"092A30"}},alignment:{horizontal:"center",vertical:"center"},border:{top:{style:"thin",color:{rgb:"1D2529"}},bottom:{style:"thin",color:{rgb:"1D2529"}},left:{style:"thin",color:{rgb:"1D2529"}},right:{style:"thin",color:{rgb:"1D2529"}}}}}for(let r=1;r<range.e.r+1;r++){for(let c=0;c<=11;c++){const cell=sheet[X.utils.encode_cell({r,c})];if(!cell)continue;cell.s={alignment:{horizontal:"center",vertical:"center"},border:{top:{style:"thin",color:{rgb:"1D2529"}},bottom:{style:"thin",color:{rgb:"1D2529"}},left:{style:"thin",color:{rgb:"1D2529"}},right:{style:"thin",color:{rgb:"1D2529"}}}};if(r<=slots.length&&c<=2)cell.s.fill={patternType:"solid",fgColor:{rgb:"20D4E3"}}}}const colors=["FFFF00","FF9900","FF0000","00FF00"];for(let i=0;i<4;i++){const cell=sheet[X.utils.encode_cell({r:slots.length+2+i,c:3})];if(cell)cell.s={fill:{patternType:"solid",fgColor:{rgb:colors[i]}},alignment:{horizontal:"center",vertical:"center"}}}const book=X.utils.book_new();X.utils.book_append_sheet(book,sheet,"シート1");const name=($("title").value||"イベント表").replace(/[\\/:*?"<>|]/g,"_");X.writeFile(book,name+".xlsx")});
@@ -50,22 +50,62 @@ function readMeta(html, key) {
   const match = html.match(pattern);
   return decodeEntities(match?.[1] || match?.[2] || "");
 }
+function ticketHost(hostname) {
+  return hostname === TICKET_HOST || hostname === "www.ticketdive.com";
+}
+function xPostId(raw) {
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:" || !["x.com", "www.x.com", "twitter.com", "www.twitter.com"].includes(url.hostname)) return null;
+    return url.pathname.match(/^\/[^/]+\/status\/(\d+)(?:\/|$)/i)?.[1] || null;
+  } catch { return null; }
+}
+async function fetchXPost(raw) {
+  const id = xPostId(raw);
+  if (!id) throw new Error("Xの投稿URL（https://x.com/ユーザー名/status/...）を入力してください。");
+  const token = ((Number(id) / 1e15) * Math.PI).toString(36).replace(/(0+|\.)/g, "");
+  const endpoint = new URL("https://cdn.syndication.twimg.com/tweet-result");
+  endpoint.searchParams.set("id", id);
+  endpoint.searchParams.set("lang", "ja");
+  endpoint.searchParams.set("token", token);
+  const response = await fetch(endpoint, { headers: { "Accept": "application/json", "User-Agent": "Mozilla/5.0 (compatible; EventTablePreview/1.0)" }, signal: AbortSignal.timeout(10000) });
+  if (!response.ok) throw new Error("Xの投稿を読み込めませんでした。公開投稿かURLを確認してください。");
+  const post = await response.json();
+  if (!post || post.__typename === "TweetTombstone" || post.__typename === "TweetUnavailable") throw new Error("Xの投稿を読み込めませんでした。公開投稿かURLを確認してください。");
+  return post;
+}
+function tweetLinks(post) {
+  const urls = post?.entities?.urls || post?.legacy?.entities?.urls || [];
+  return urls.map(item => item?.expanded_url || item?.unwound_url || item?.url || "").filter(Boolean);
+}
+function tweetImageUrls(post) {
+  const media = [post?.photos, post?.mediaDetails, post?.entities?.media, post?.extended_entities?.media, post?.legacy?.extended_entities?.media].flatMap(value => Array.isArray(value) ? value : []);
+  return media.map(item => item?.media_url_https || item?.media_url || item?.url || "").filter(Boolean).map(raw => {
+    try {
+      const url = new URL(raw);
+      if (url.hostname !== "pbs.twimg.com" || !url.pathname.startsWith("/media/")) return "";
+      if (url.searchParams.has("name")) url.searchParams.set("name", "large");
+      return url.href;
+    } catch { return ""; }
+  }).filter(Boolean);
+}
 function allowedPage(raw) {
   try {
     const url = new URL(raw);
-    return url.protocol === "https:" && url.hostname === TICKET_HOST && /^\/event\/[A-Za-z0-9_-]+\/?$/.test(url.pathname) ? url : null;
+    return url.protocol === "https:" && ticketHost(url.hostname) && /^\/event\/[A-Za-z0-9_-]+\/?$/.test(url.pathname) ? url : null;
   } catch { return null; }
 }
 function allowedImage(raw, base) {
   try {
     let url = new URL(raw, base);
-    if (url.hostname === TICKET_HOST && url.pathname === "/_next/image") {
+    if (ticketHost(url.hostname) && url.pathname === "/_next/image") {
       const nested = url.searchParams.get("url");
       if (nested) url = new URL(nested, base);
     }
-    const ticketImage = url.protocol === "https:" && url.hostname === TICKET_HOST && url.pathname.startsWith("/_next/image");
+    const ticketImage = url.protocol === "https:" && ticketHost(url.hostname) && url.pathname.startsWith("/_next/image");
     const storageImage = url.protocol === "https:" && url.hostname === "storage.googleapis.com" && url.pathname.startsWith("/playyte-ticket-prod_event/");
-    return ticketImage || storageImage ? url : null;
+    const xImage = url.protocol === "https:" && url.hostname === "pbs.twimg.com" && url.pathname.startsWith("/media/");
+    return ticketImage || storageImage || xImage ? url : null;
   } catch { return null; }
 }
 function corsHeaders(request) {
@@ -82,14 +122,25 @@ async function handlePreview(request) {
   if (origin !== new URL(request.url).origin && origin !== GITHUB_PAGES_ORIGIN) return Response.json({ message: "この画面からURLを送信してください。" }, { status: 403, headers });
   let input;
   try { input = await request.json(); } catch { return Response.json({ message: "チケットURLを確認してください。" }, { status: 400, headers }); }
-  const eventUrl = allowedPage(input?.url);
-  if (!eventUrl) return Response.json({ message: "https://ticketdive.com/event/... のURLを入力してください。" }, { status: 400, headers });
+  let eventUrl = allowedPage(input?.url);
+  let sourcePost = null;
+  if (!eventUrl) {
+    try { sourcePost = await fetchXPost(input?.url); }
+    catch (error) { return Response.json({ message: error.message || "TicketDiveまたは公開X投稿のURLを入力してください。" }, { status: 400, headers }); }
+    eventUrl = tweetLinks(sourcePost).map(allowedPage).find(Boolean) || null;
+    if (!eventUrl) return Response.json({ message: "X投稿内にTicketDiveのイベントリンクが見つかりませんでした。TicketDive URLを直接入力してください。" }, { status: 400, headers });
+  }
+  let flyerPost = null;
+  if (input?.flyerUrl) {
+    try { flyerPost = await fetchXPost(input.flyerUrl); }
+    catch (error) { return Response.json({ message: error.message || "別のXフライヤー投稿を読み込めませんでした。" }, { status: 400, headers }); }
+  }
   let response;
   try { response = await fetch(eventUrl, { redirect: "manual", headers: { "User-Agent": "Mozilla/5.0 (compatible; EventTablePreview/1.0)" } }); }
   catch { return Response.json({ message: "チケットページに接続できませんでした。時間をおいてお試しください。" }, { status: 502, headers }); }
   if (response.status >= 300 && response.status < 400) {
     const location = response.headers.get("location");
-    if (!location || new URL(location, eventUrl).hostname !== TICKET_HOST) return Response.json({ message: "ページの転送先を確認できませんでした。" }, { status: 502, headers });
+    if (!location || !ticketHost(new URL(location, eventUrl).hostname)) return Response.json({ message: "ページの転送先を確認できませんでした。" }, { status: 502, headers });
     response = await fetch(new URL(location, eventUrl), { redirect: "manual" });
   }
   const length = Number(response.headers.get("content-length") || 0);
@@ -102,14 +153,18 @@ async function handlePreview(request) {
   const startTime = visible.match(/開演(?:時刻)?\s*(\d{1,2}[:：]\d{2})/)?.[1]?.replace("：", ":") || "";
   const venue = visible.match(/会場\s*([\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}A-Za-z0-9・＆&\s-]{2,30})(?=出演|TICKET|公演|$)/u)?.[1]?.trim() || "";
   const artists = [...html.matchAll(/<a\b[^>]*href=["'](?:https:\/\/ticketdive\.com)?\/artist\/[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi)].map((m) => textOnly(m[1])).filter((x, i, a) => x && a.indexOf(x) === i).slice(0, 60);
-  const candidates = [readMeta(html, "og:image"), ...[...html.matchAll(/<(?:img|source)\b[^>]*(?:src|srcset)=["']([^"']+)["'][^>]*>/gi)].map((m) => m[1].split(",")[0].trim().split(/\s+/)[0])];
+  const xImages = [...tweetImageUrls(flyerPost), ...tweetImageUrls(sourcePost)].map(raw => allowedImage(raw, eventUrl)).filter(Boolean).map(image => image.href);
+  const candidates = [...xImages, readMeta(html, "og:image"), ...[...html.matchAll(/<(?:img|source)\b[^>]*(?:src|srcset)=["']([^"']+)["'][^>]*>/gi)].map((m) => m[1].split(",")[0].trim().split(/\s+/)[0])];
   const imageUrls = [...new Set(candidates.map((x) => allowedImage(x, eventUrl)).filter(Boolean).map((x) => x.href))].slice(0, 8);
   return Response.json({ title: title.replace(/\s*\|\s*TicketDive$/i, "").slice(0, 100), date, venue, openTime, startTime, artists, images: imageUrls.map((x) => `/api/ticket-image?url=${encodeURIComponent(x)}`) }, { headers });
 }
 function allowedImageRequest(raw) {
   try {
     const url = new URL(raw);
-    return url.protocol === "https:" && ((url.hostname === TICKET_HOST && url.pathname === "/_next/image") || (url.hostname === "storage.googleapis.com" && url.pathname.startsWith("/playyte-ticket-prod_event/"))) ? url : null;
+    const ticketImage = ticketHost(url.hostname) && url.pathname === "/_next/image";
+    const storageImage = url.hostname === "storage.googleapis.com" && url.pathname.startsWith("/playyte-ticket-prod_event/");
+    const xImage = url.hostname === "pbs.twimg.com" && url.pathname.startsWith("/media/");
+    return url.protocol === "https:" && (ticketImage || storageImage || xImage) ? url : null;
   } catch { return null; }
 }
 async function handleImage(request) {
