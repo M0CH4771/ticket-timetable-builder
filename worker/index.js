@@ -103,7 +103,7 @@ async function fetchXPost(raw) {
 }
 function tweetLinks(post) {
   const urls = post?.entities?.urls || post?.legacy?.entities?.urls || [];
-  return urls.map(item => item?.expanded_url || item?.unwound_url || item?.url || "").filter(Boolean);
+  return [...new Set(urls.flatMap(item => [item?.unwound_url, item?.expanded_url, item?.url]).filter(Boolean))].slice(0, 12);
 }
 function tweetImageUrls(post) {
   const media = [post?.photos, post?.mediaDetails, post?.entities?.media, post?.extended_entities?.media, post?.legacy?.extended_entities?.media].flatMap(value => Array.isArray(value) ? value : []);
@@ -122,6 +122,47 @@ function allowedPage(raw) {
     return url.protocol === "https:" && ticketHost(url.hostname) && /^\/event\/[A-Za-z0-9_-]+\/?$/.test(url.pathname) ? url : null;
   } catch { return null; }
 }
+
+function allowedTicketLink(raw) {
+  try {
+    const value = String(raw || "").trim();
+    const url = new URL(/^(?:t-dv\.com|t\.co)\//i.test(value) ? "https://" + value : value);
+    if (url.protocol !== "https:" || url.username || url.password || url.port) return null;
+    return allowedPage(url.href) || (["t-dv.com", "t.co"].includes(url.hostname) && /^\/[A-Za-z0-9_-]+\/?$/.test(url.pathname) ? url : null);
+  } catch { return null; }
+}
+async function resolveTicketLink(raw) {
+  let url = allowedTicketLink(raw);
+  const visited = new Set();
+  for (let hop = 0; url && hop < 5; hop++) {
+    const event = allowedPage(url.href);
+    if (event) return event;
+    if (visited.has(url.href)) return null;
+    visited.add(url.href);
+    try {
+      const response = await fetch(url.href, { redirect: "manual", signal: AbortSignal.timeout(8000) });
+      const location = response.headers.get("location");
+      await response.body?.cancel();
+      if (![301, 302, 303, 307, 308].includes(response.status) || !location) return null;
+      url = allowedTicketLink(new URL(location, url).href);
+    } catch { return null; }
+  }
+  return url ? allowedPage(url.href) : null;
+}
+async function resolveTweetTicket(post) {
+  const links = tweetLinks(post);
+  // Prefer an already expanded event URL before making redirect requests.
+  for (const link of links) {
+    const direct = allowedTicketLink(link);
+    if (direct && allowedPage(direct.href)) return direct;
+  }
+  for (const link of links) {
+    const event = await resolveTicketLink(link);
+    if (event) return event;
+  }
+  return null;
+}
+
 function allowedImage(raw, base) {
   try {
     let url = new URL(raw, base);
@@ -149,12 +190,12 @@ async function handlePreview(request) {
   if (origin !== new URL(request.url).origin && origin !== GITHUB_PAGES_ORIGIN) return Response.json({ message: "この画面からURLを送信してください。" }, { status: 403, headers });
   let input;
   try { input = await request.json(); } catch { return Response.json({ message: "チケットURLを確認してください。" }, { status: 400, headers }); }
-  let eventUrl = allowedPage(input?.url);
+  let eventUrl = await resolveTicketLink(input?.url);
   let sourcePost = null;
   if (!eventUrl) {
     try { sourcePost = await fetchXPost(input?.url); }
     catch (error) { return Response.json({ message: error.message || "TicketDiveまたは公開X投稿のURLを入力してください。" }, { status: 400, headers }); }
-    eventUrl = tweetLinks(sourcePost).map(allowedPage).find(Boolean) || null;
+    eventUrl = await resolveTweetTicket(sourcePost);
     if (!eventUrl) return Response.json({ message: "X投稿内にTicketDiveのイベントリンクが見つかりませんでした。TicketDive URLを直接入力してください。" }, { status: 400, headers });
   }
   let flyerPost = null;
