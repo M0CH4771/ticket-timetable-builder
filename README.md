@@ -18,3 +18,24 @@ OCR結果と時刻は必ず確認してください。データはこの画面�
 ## 構成
 
 画面はGitHub Pagesで公開します。TicketDiveページと画像の取得には、同じアカウントで管理するWorker APIを利用します。
+
+
+## 高精度OCRのAPI設定
+
+GitHub Pagesは画面を配信し、Cloudflare WorkerがTicketDiveの取得とOCR API呼び出しを担当します。OCRはCloud Vision（最初のポスター1枚）とGemini 3.6 Flash（最大3枚をまとめて1リクエスト）を組み合わせます。Cloud Visionが未設定・利用上限でもGemini単独で動作します。確信度が低い行や出演者名候補と一致しない行は黄色で表示し、手動確認してください。
+
+### 無料枠
+
+- Gemini APIは無料枠があります。リクエスト数の上限はプロジェクトやモデルごとに変わり、Google AI Studioの「Rate limits」で確認できます。上限超過時は読み取りを止めます。課金アカウントを紐づけなければ、無料枠超過分を有料利用に切り替えません。
+- Cloud Visionは月1,000画像リクエストまで無料です。通常はイベント1件につき1画像だけをOCR補助に使います。無料枠を超えた分は、課金が有効なプロジェクトでは1,000画像あたり $1.50 です。請求を発生させたくない場合はCloud Visionの課金を有効にせず、Geminiだけで利用してください。
+- Geminiの無料利用では入力データがGoogleのサービス改善に使われることがあります。公開イベント画像の読み取りに限定してください。
+
+### Cloudflare Workerのデプロイ
+
+1. CloudflareアカウントでWorkersを有効にし、ローカルで npx wrangler login を実行します。
+2. Google AI StudioでGemini APIキーを作り、npx wrangler secret put GEMINI_API_KEY でWorkerの秘密情報として設定します。
+3. Cloud Visionも使う場合は、Google CloudでVision APIキーを作り、npx wrangler secret put GOOGLE_VISION_API_KEY で設定します。キーはVision APIだけに制限してください。
+4. リポジトリのルートで npx wrangler deploy を実行します。
+5. 発行されたWorker URLをサイトの「Googleアカウント連携の設定」内にある「Worker API URL」へ入力して保存します。
+
+Worker URLとAPIキーはGitHubへコミットしないでください。wrangler.toml はWorker名とエントリーポイントのみを設定し、秘密情報はCloudflareに保存します。
