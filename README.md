@@ -32,10 +32,12 @@ GitHub Pagesは画面を配信し、Cloudflare WorkerがTicketDiveの取得とOC
 
 ### Cloudflare Workerのデプロイ
 
-1. CloudflareアカウントでWorkersを有効にし、ローカルで npx wrangler login を実行します。
-2. Google AI StudioでGemini APIキーを作り、npx wrangler secret put GEMINI_API_KEY でWorkerの秘密情報として設定します。
-3. Cloud Visionも使う場合は、Google CloudでVision APIキーを作り、npx wrangler secret put GOOGLE_VISION_API_KEY で設定します。キーはVision APIだけに制限してください。
-4. リポジトリのルートで npx wrangler deploy を実行します。
-5. 発行されたWorker URLをサイトの「Googleアカウント連携の設定」内にある「Worker API URL」へ入力して保存します。
+1. MacにNode.jsを入れ、リポジトリをダウンロードしてそのフォルダーをターミナルで開きます。
+2. Cloudflareアカウントで npx wrangler login を実行し、ブラウザーでログインします。
+3. リポジトリのルートで npx wrangler deploy を実行します。初回はWorkerを作成します。
+4. Google AI Studioで、課金を有効にしていないプロジェクトのGemini APIキーを作成します。2026年10月時点では新しいキーは認証キーが標準です。キーを画面やGitHubへ貼らず、npx wrangler secret put GEMINI_API_KEY を実行して表示される入力欄に貼り付けます。
+5. Cloud Visionも使う場合はGoogle CloudでVision APIを有効にし、Vision APIキーを作って npx wrangler secret put GOOGLE_VISION_API_KEY で設定します。課金が必要なため、完全無料で使う場合はこのキーを設定しません。
+6. npx wrangler secret put のあと秘密情報がWorkerへ反映されます。
+7. 発行されたWorker URLをGitHub Pagesの「Googleアカウント連携の設定」内にある「Worker API URL」へ入力して保存します。
 
 Worker URLとAPIキーはGitHubへコミットしないでください。wrangler.toml はWorker名とエントリーポイントのみを設定し、秘密情報はCloudflareに保存します。
