@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="イベントスプシ作成">
+<rect width="512" height="512" fill="#126657"/>
+<rect x="101" y="102" width="310" height="314" rx="38" fill="#fff"/>
+<path d="M139 102h234a38 38 0 0 1 38 38v58H101v-58a38 38 0 0 1 38-38Z" fill="#dcece2"/>
+<rect x="176" y="78" width="28" height="68" rx="14" fill="#fff"/>
+<rect x="308" y="78" width="28" height="68" rx="14" fill="#fff"/>
+<rect x="137" y="226" width="56" height="18" rx="9" fill="#f1bd70"/>
+<rect x="211" y="226" width="146" height="18" rx="9" fill="#126657"/>
+<rect x="137" y="273" width="56" height="18" rx="9" fill="#8fc3a6"/>
+<rect x="211" y="273" width="110" height="18" rx="9" fill="#cfe2d5"/>
+<rect x="137" y="320" width="56" height="18" rx="9" fill="#8fc3a6"/>
+<rect x="211" y="320" width="126" height="18" rx="9" fill="#cfe2d5"/>
+<circle cx="355" cy="352" r="63" fill="#f1bd70" stroke="#fff" stroke-width="12"/>
+<path d="M355 314v40l28 18" fill="none" stroke="#126657" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
