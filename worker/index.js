@@ -164,7 +164,7 @@ async function handlePreview(request) {
   const xImages = [...tweetImageUrls(flyerPost), ...tweetImageUrls(sourcePost)].map(raw => allowedImage(raw, eventUrl)).filter(Boolean).map(image => image.href);
   const candidates = [...xImages, readMeta(html, "og:image"), ...[...html.matchAll(/<(?:img|source)\b[^>]*(?:src|srcset)=["']([^"']+)["'][^>]*>/gi)].map((m) => m[1].split(",")[0].trim().split(/\s+/)[0])];
   const imageUrls = [...new Set(candidates.map((x) => allowedImage(x, eventUrl)).filter(Boolean).map((x) => x.href))].slice(0, 8);
-  return Response.json({ title: title.replace(/\s*\|\s*TicketDive$/i, "").slice(0, 100), date, venue, openTime, startTime, artists, images: imageUrls.map((x) => `/api/ticket-image?url=${encodeURIComponent(x)}`) }, { headers });
+  return Response.json({ title: title.replace(/\s*\|\s*TicketDive$/i, "").slice(0, 100), date, venue, openTime, startTime, artists, ticketDiveUrl: eventUrl, images: imageUrls.map((x) => `/api/ticket-image?url=${encodeURIComponent(x)}`) }, { headers });
 }
 function allowedImageRequest(raw) {
   try {
